@@ -22,7 +22,7 @@ const (
 
 type line[D any] struct {
 	Seq uint64 `json:"seq"`
-	At  int64  `json:"at"`
+	At  int64  `json:"at"` // Unix milliseconds
 	D   D      `json:"d"`
 }
 
@@ -54,7 +54,7 @@ func (s *Store[D, R]) writeLine(d D, at time.Time) bool {
 		return false
 	}
 	s.seq++
-	b, err := json.Marshal(line[D]{Seq: s.seq, At: at.Unix(), D: d})
+	b, err := json.Marshal(line[D]{Seq: s.seq, At: at.UnixMilli(), D: d})
 	if err != nil || len(b) >= maxLine {
 		return false
 	}
@@ -99,15 +99,24 @@ func (s *Store[D, R]) apply(d D, at time.Time) {
 }
 
 // evict removes a batch of keys, the least recently seen first (ties:
-// smallest key). Batching keeps the O(n log n) pass off the per-insert path.
+// smallest key). Records the Schema Keeps (see Keeper) are skipped unless
+// every key is kept. Batching keeps the O(n log n) pass off the per-insert path.
 func (s *Store[D, R]) evict() {
 	type cand struct {
 		key  string
 		seen time.Time
 	}
+	keeper, _ := s.sch.(Keeper[R])
 	all := make([]cand, 0, len(s.entries))
 	for k, e := range s.entries {
-		all = append(all, cand{k, e.Seen})
+		if keeper == nil || !keeper.Keep(e.R) {
+			all = append(all, cand{k, e.Seen})
+		}
+	}
+	if len(all) == 0 { // everything is kept: plain least-recently-seen
+		for k, e := range s.entries {
+			all = append(all, cand{k, e.Seen})
+		}
 	}
 	sort.Slice(all, func(i, j int) bool {
 		a, b := all[i], all[j]
@@ -155,6 +164,9 @@ func (s *Store[D, R]) load() error {
 		if err != nil {
 			return fmt.Errorf("ledger: snapshot: %w", err)
 		}
+		if snap.V != 1 {
+			return fmt.Errorf("ledger: snapshot version %d, want 1", snap.V)
+		}
 		s.seq = snap.Seq
 		for k, e := range snap.Entries {
 			s.entries[k] = e
@@ -176,7 +188,7 @@ func (s *Store[D, R]) load() error {
 			return
 		}
 		if s.accepts(l.D) {
-			s.apply(l.D, time.Unix(l.At, 0))
+			s.apply(l.D, time.UnixMilli(l.At).UTC())
 		}
 		s.seq = l.Seq
 	})

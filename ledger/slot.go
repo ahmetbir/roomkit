@@ -6,9 +6,9 @@ import (
 	"time"
 )
 
-// slotQueue bounds the deltas a waiting Slot holds. It stays under the
-// store's default Buffer, so replaying the queue into a fresh store never
-// overflows it.
+// slotQueue bounds the deltas a waiting Slot holds. Set replays the queue
+// into the store without blocking, so it assumes the store's Buffer is at
+// least slotQueue (the default 1024 is); a smaller Buffer drops the excess.
 const slotQueue = 512
 
 type slotState int
@@ -61,8 +61,9 @@ func (s *Slot[D, R]) Close() error {
 	if st == nil {
 		return nil
 	}
+	err := st.Close()
 	s.dropped.Add(st.Dropped()) // the closed store's losses stay counted
-	return st.Close()
+	return err
 }
 
 // Reopen makes a closed slot wait for a store again (undrain).

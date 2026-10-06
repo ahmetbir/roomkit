@@ -92,7 +92,9 @@ undrains. Clients treat `1012` as "updating" and rejoin the same code.
   (full or closed = dropped and counted), one actor owns the maps, `stats.lock` is held until
   `Close` (a second `Open` gets `ErrLocked`). `Schema.Fold` and `Key` are replayed from the journal
   after a crash, so keep them deterministic; `D` and `R` must JSON-marshal. Eviction is
-  least-recently-seen; game-specific eviction or admission rules belong in `Schema.Empty`/`Key`.
+  least-recently-seen at the key cap; admission rules belong in `Schema.Key`/`Empty`, retention in
+  the optional `ledger.Keeper` (kept records skip eviction). Times are millisecond-truncated UTC so
+  live `Fold` and journal replay see the same `at`; snapshots carry `"v":1` and other versions are refused.
 
 ### Testing
 

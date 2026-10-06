@@ -24,6 +24,12 @@ type Schema[D, R any] interface {
 	Empty(d D) bool                // nothing to record
 }
 
+// Keeper is an optional Schema extension: records that Keep reports true
+// outlive the others at the key cap (they still age out at MaxIdle).
+type Keeper[R any] interface {
+	Keep(r R) bool
+}
+
 // Entry is a stored record and the last time its key was recorded.
 type Entry[R any] struct {
 	R    R         `json:"r"`
@@ -161,7 +167,7 @@ func (s *Store[D, R]) Record(d D) bool {
 		now = s.o.Now
 	}
 	select {
-	case s.in <- rec[D]{d, now()}:
+	case s.in <- rec[D]{d, now().Truncate(time.Millisecond).UTC()}:
 		return true
 	default:
 		s.dropped.Add(1)

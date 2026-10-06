@@ -408,3 +408,98 @@ func TestCrashReleasesTheLock(t *testing.T) {
 	b := open(t, dir, c, Options{})
 	b.Close()
 }
+
+type keeperToy struct{ toy }
+
+func (keeperToy) Keep(r record) bool { return r.Wins >= 100 }
+
+func TestKeeperSurvivesKeyCapFlood(t *testing.T) {
+	c := &clock{t0}
+	s, err := Open[delta, record](t.TempDir(), keeperToy{}, Options{MaxKeys: 3, Now: c.Now, Log: slog.New(slog.DiscardHandler)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	s.Record(delta{"vet", 100}) // oldest, but kept
+	for i := range 30 {
+		c.now = t0.Add(time.Duration(i+1) * time.Hour)
+		s.Record(delta{string(rune('a' + i)), 1})
+	}
+	if _, ok := wins(s, "vet"); !ok {
+		t.Fatal("a kept record was evicted")
+	}
+	if _, ok := wins(s, "a"); ok {
+		t.Fatal("unkept records go")
+	}
+}
+
+func TestEvictionFallsBackWhenEveryKeyIsKept(t *testing.T) {
+	c := &clock{t0}
+	s, _ := Open[delta, record](t.TempDir(), keeperToy{}, Options{MaxKeys: 2, Now: c.Now, Log: slog.New(slog.DiscardHandler)})
+	defer s.Close()
+	s.Record(delta{"a", 100})
+	c.now = t0.Add(time.Hour)
+	s.Record(delta{"b", 100})
+	c.now = t0.Add(2 * time.Hour)
+	s.Record(delta{"c", 100})
+	var n int
+	do(s, func(s *store) { n = len(s.entries) })
+	if _, ok := wins(s, "a"); ok || n != 2 {
+		t.Fatalf("least recently seen must go when all are kept: %d keys", n)
+	}
+}
+
+// atRec remembers the time Fold saw, to compare live against replay.
+type atRec struct {
+	Wins int   `json:"wins"`
+	At   int64 `json:"at"`
+}
+
+type atSchema struct{}
+
+func (atSchema) Key(d delta) string { return d.K }
+func (atSchema) Fold(r atRec, d delta, at time.Time) atRec {
+	return atRec{r.Wins + d.Wins, at.UnixNano()}
+}
+func (atSchema) Empty(d delta) bool { return d.Wins == 0 }
+
+func TestFoldSeesTheSameTimeLiveAndOnReplay(t *testing.T) {
+	dir := t.TempDir()
+	c := &clock{t0.Add(123_456_789 * time.Nanosecond)}
+	o := Options{Now: c.Now, Log: slog.New(slog.DiscardHandler)}
+	s, _ := Open[delta, atRec](dir, atSchema{}, o)
+	s.Record(delta{"aa", 1})
+	live, seen, _ := s.Get("aa")
+	s.crash() // replay from the journal
+	s, _ = Open[delta, atRec](dir, atSchema{}, o)
+	replayed, seen2, _ := s.Get("aa")
+	if live != replayed || !seen.Equal(seen2) {
+		t.Fatalf("live %+v %v, replayed %+v %v", live, seen, replayed, seen2)
+	}
+	s.Close() // and from the snapshot
+	s, _ = Open[delta, atRec](dir, atSchema{}, o)
+	defer s.Close()
+	if snap, seen3, _ := s.Get("aa"); snap != live || !seen.Equal(seen3) {
+		t.Fatalf("snapshot %+v %v", snap, seen3)
+	}
+}
+
+func TestOpenRejectsForeignSnapshotVersion(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, snapName), []byte(`{"v":2,"seq":1,"entries":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Open[delta, record](dir, toy{}, Options{}); err == nil {
+		t.Fatal("a snapshot with another version must not load")
+	}
+	b, _ := os.ReadFile(filepath.Join(dir, snapName))
+	if !strings.Contains(string(b), `"v":2`) {
+		t.Fatal("foreign snapshot was touched")
+	}
+	// the failed Open released the lock
+	if err := os.Remove(filepath.Join(dir, snapName)); err != nil {
+		t.Fatal(err)
+	}
+	s := open(t, dir, &clock{t0}, Options{})
+	s.Close()
+}
