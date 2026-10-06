@@ -1,0 +1,7 @@
+node_modules/
+.superpowers/
+# never commit secrets
+.env
+.env.*
+*.pem
+*.key

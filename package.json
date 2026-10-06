@@ -1,0 +1,18 @@
+{
+  "name": "roomkit",
+  "version": "0.1.0",
+  "description": "Client core of roomkit: socket, input shaper, prediction, interpolation, i18n, UI primitives.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "files": ["dist"],
+  "exports": {
+    "./*": { "types": "./dist/*.d.ts", "default": "./dist/*.js" }
+  },
+  "scripts": {
+    "build": "node scripts/build-dist.mjs dist",
+    "check": "tsc --noEmit -p tsconfig.check.json",
+    "test": "node --experimental-strip-types --no-warnings --test 'ts/**/*.test.ts'"
+  },
+  "devDependencies": { "@types/node": "^22", "typescript": "^5.8" }
+}
