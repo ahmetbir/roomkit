@@ -31,7 +31,7 @@ func (Kit) Class(t string) server.Class {
 }
 func (Kit) InRoom(m Msg) bool { return m.T == "color" }
 func (Kit) Settings(m Msg, _ time.Time) (Settings, bool) {
-	return Settings{Seats: m.Seats, Listed: true}, m.Seats >= 1 && m.Seats <= 8
+	return Settings{Seats: m.Seats, Listed: true, Refuse: m.Refuse}, m.Seats >= 1 && m.Seats <= 8
 }
 func (Kit) Row(s room.Summary[Info]) any {
 	return map[string]any{"code": s.Code, "humans": s.Humans, "seats": s.Seats, "color": s.Game.Color}

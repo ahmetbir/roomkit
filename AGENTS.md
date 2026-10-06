@@ -16,7 +16,7 @@ tested, and backward compatible within a minor version.
 ## Testing a change against a game
 
 A game pins a tag (`require github.com/ahmetbir/roomkit vX.Y.Z`, `"roomkit":
-"github:ahmetbir/roomkit#vX.Y.Z"`). To try unreleased roomkit code in a game checkout beside this
+"git+https://github.com/ahmetbir/roomkit.git#vX.Y.Z"`). To try unreleased roomkit code in a game checkout beside this
 one, temporarily point it here, on a local branch only:
 
 ```sh
@@ -77,6 +77,17 @@ with a `replace` or a `file:` dependency; Dogfight's `release.sh` refuses one. T
 `SIGUSR1`: rooms keep playing, tallies flush, the stats handoff releases its lock, new sockets get
 `1012`, `/api/*` answers 503; exit when the last socket closes or after the max. `SIGUSR2`
 undrains. Clients treat `1012` as "updating" and rejoin the same code.
+
+### Game seams
+
+- `room.Info.Bots` is what the bot gauge shows: the game counts its own bots (it need not be
+  `Seats - Humans`). `Seats` is the capacity quick play compares `Humans` against.
+- `room.Refuse(code)` from `Game.Join` turns a player away with the game's own code (shape
+  `^[a-z][a-z0-9_]{0,31}$`, never a core code; otherwise the player gets `full` and the server
+  logs the bug). The error frame carries the code as `code` and `msg`; quick play skips such a
+  room like a full one. Keep refusal codes in the game's notice-code collision test.
+- `server.Stats.Boards()` lists `BoardID{Period, Key}` pairs; `/api/leaderboard?period=&key=`
+  serves only those (a missing `key` is `""`), anything else is `bad_period`.
 
 ### Testing
 

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"net"
+	"regexp"
+	"slices"
 
 	"github.com/ahmetbir/roomkit/limit"
 	"github.com/ahmetbir/roomkit/lobby"
@@ -77,16 +79,33 @@ func (s *Server[S, M, In, X]) handshake(ctx context.Context, p *peer[M]) (*room.
 	}
 
 	seat, err := rm.Join(ctx, who, roomConn{p.conn, s.draining})
+	var rf *room.Refusal
 	switch {
 	case errors.Is(err, room.ErrFull):
 		return nil, msgFull
 	case errors.Is(err, room.ErrClosed):
 		return nil, msgNoRoom
+	case errors.As(err, &rf):
+		return nil, p.refuse(rf.Code)
 	case err != nil:
 		return nil, s.msgOf(err, p)
 	}
 	return seat, ""
 }
+
+// refuse is the error text of a game's refusal: its code, which the error
+// frame also carries (fail). A code outside the protocol's shape is a game
+// bug; the player then gets the generic full-room error.
+func (p *peer[M]) refuse(code string) string {
+	if !refusalCode.MatchString(code) || slices.Contains(netproto.ErrorCodes(), code) || slices.Contains(netproto.APICodes(), code) {
+		slog.Error("game refusal with a bad code", "code", code)
+		return msgFull
+	}
+	p.refused = code
+	return code
+}
+
+var refusalCode = regexp.MustCompile(`^[a-z][a-z0-9_]{0,31}$`)
 
 // identify is the hello's player: a valid token is kept, anything else is
 // replaced by a fresh one that the welcome hands back. Only the hash is kept.
@@ -140,10 +159,11 @@ func (s *Server[S, M, In, X]) quickJoin(ctx context.Context, p *peer[M], who roo
 		return nil, msgJoins, true
 	}
 	seat, err := r.Join(ctx, who, roomConn{p.conn, s.draining})
+	var rf *room.Refusal
 	switch {
 	case err == nil:
 		return seat, "", true
-	case errors.Is(err, room.ErrFull), errors.Is(err, room.ErrClosed):
+	case errors.Is(err, room.ErrFull), errors.Is(err, room.ErrClosed), errors.As(err, &rf):
 		s.joins.Refund(p.key, s.o.Now())
 		return nil, "", false
 	}

@@ -10,7 +10,7 @@ roomkit runs everything around them.
 
 - **Go:** `go get github.com/ahmetbir/roomkit@latest` — Go 1.26, one dependency
   ([coder/websocket](https://github.com/coder/websocket)).
-- **TypeScript:** `"roomkit": "github:ahmetbir/roomkit#v0.1.0"` in `package.json`, then
+- **TypeScript:** `"roomkit": "git+https://github.com/ahmetbir/roomkit.git#v0.2.0"` in `package.json`, then
   `import { Socket } from "roomkit/net/socket"`. Ships compiled ES2022 with type declarations; no
   runtime dependencies, no `three`.
 

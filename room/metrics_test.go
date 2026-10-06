@@ -55,3 +55,27 @@ func TestRoomMetricsClosedWithHumans(t *testing.T) {
 		}
 	})
 }
+
+// The bot gauge is what the game reports (Info.Bots), not Seats-Humans: a
+// grid of 2 bots in an 8-seat room stays 2 bots as humans come and go.
+func TestRoomMetricsBotsAreReported(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		reg := metrics.New("dogfight", nil)
+		r := room.New("MTRB", fakegame.New(fakegame.Settings{Seats: 8, Bots: 2}, nil), room.Options{Metrics: reg})
+		ctx, cancel := context.WithCancel(t.Context())
+		go r.Run(ctx)
+		if reg.Bots.Load() != 2 {
+			t.Fatalf("bots %d", reg.Bots.Load())
+		}
+		r.Join(ctx, room.Who{Name: "a"}, &fakeSender{})
+		synctest.Wait()
+		if reg.Bots.Load() != 2 || reg.Humans.Load() != 1 {
+			t.Fatalf("bots %d humans %d", reg.Bots.Load(), reg.Humans.Load())
+		}
+		cancel()
+		<-r.Done()
+		if reg.Bots.Load() != 0 || reg.Humans.Load() != 0 {
+			t.Fatalf("after close: bots %d humans %d", reg.Bots.Load(), reg.Humans.Load())
+		}
+	})
+}

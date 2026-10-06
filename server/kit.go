@@ -49,7 +49,12 @@ type Kit[S, M, X any] interface {
 // Stats serves the pilot API; nil = stats off (503). Safe for concurrent use.
 type Stats interface {
 	Ready() bool
-	Periods() []string                  // allowed ?period= values
-	Board(period string) []byte         // leaderboard body for an allowed period; nil = store closed
+	Boards() []BoardID                  // the leaderboards served: the ?period=&key= whitelist
+	Board(id BoardID) []byte            // body of an allowed board; nil = store closed
 	Me(pilotHash string) ([]byte, bool) // the caller's body; false = unknown pilot
 }
+
+// BoardID names one leaderboard: GET /api/leaderboard?period=<Period>&key=<Key>
+// (a missing key is ""). Key is the game's (Dogfight: none; a racing game:
+// a track).
+type BoardID struct{ Period, Key string }

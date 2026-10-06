@@ -101,8 +101,8 @@ type Server[S any, M Msg[M, In], In room.Input[In], X any] struct {
 	joins     *limit.Keyed
 	apis      *limit.Keyed
 	rejects   *rejectLog
-	rooms     apiCache             // GET /api/rooms body
-	boards    map[string]*apiCache // GET /api/leaderboard body per allowed period (Stats.Periods)
+	rooms     apiCache              // GET /api/rooms body
+	boards    map[BoardID]*apiCache // GET /api/leaderboard body per allowed board (Stats.Boards)
 	// quickPick picks a room for quick play; the lobby's Quick, swapped in
 	// tests to race the picked room.
 	quickPick func() (*room.Room[M, In, X], bool)
@@ -147,13 +147,13 @@ func New[S any, M Msg[M, In], In room.Input[In], X any](l *lobby.Lobby[S, M, In,
 	return s
 }
 
-// boards is one leaderboard cache per period the stats allow (none when
-// stats are off): the ?period= whitelist.
-func boards(st Stats) map[string]*apiCache {
-	b := map[string]*apiCache{}
+// boards is one leaderboard cache per board the stats allow (none when
+// stats are off): the ?period=&key= whitelist.
+func boards(st Stats) map[BoardID]*apiCache {
+	b := map[BoardID]*apiCache{}
 	if st != nil {
-		for _, p := range st.Periods() {
-			b[p] = &apiCache{}
+		for _, id := range st.Boards() {
+			b[id] = &apiCache{}
 		}
 	}
 	return b

@@ -12,7 +12,7 @@ import (
 
 const (
 	roomsTTL = time.Second      // how long one /api/rooms body is served before it is rebuilt
-	boardTTL = 10 * time.Second // same for each /api/leaderboard period
+	boardTTL = 10 * time.Second // same for each /api/leaderboard board
 )
 
 // User-facing API error texts.
@@ -90,8 +90,9 @@ func (s *Server[S, M, In, X]) apiRooms(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 
-// apiLeaderboard is GET /api/leaderboard?period=week|all: the top pilots,
-// rebuilt at most once per boardTTL per period.
+// apiLeaderboard is GET /api/leaderboard?period=<p>[&key=<k>]: the top
+// pilots of one board the stats allow, rebuilt at most once per boardTTL.
+// A pair outside the whitelist is bad_period.
 func (s *Server[S, M, In, X]) apiLeaderboard(w http.ResponseWriter, r *http.Request) {
 	if !s.apiAllow(w, r) {
 		return
@@ -100,13 +101,14 @@ func (s *Server[S, M, In, X]) apiLeaderboard(w http.ResponseWriter, r *http.Requ
 		writeJSON(w, http.StatusServiceUnavailable, errorJSON(msgStatsOff))
 		return
 	}
-	name := r.URL.Query().Get("period")
-	c, ok := s.boards[name] // whitelisted (Stats.Periods) before it is echoed
+	q := r.URL.Query()
+	id := BoardID{Period: q.Get("period"), Key: q.Get("key")}
+	c, ok := s.boards[id] // whitelisted (Stats.Boards) before it is used
 	if !ok {
 		writeJSON(w, http.StatusBadRequest, errorJSON(msgBadPeriod))
 		return
 	}
-	body := c.get(s.o.Now(), boardTTL, func() []byte { return s.o.Stats.Board(name) })
+	body := c.get(s.o.Now(), boardTTL, func() []byte { return s.o.Stats.Board(id) })
 	if body == nil { // the store closed after Ready: no board, nothing cached
 		writeJSON(w, http.StatusServiceUnavailable, errorJSON(msgStatsOff))
 		return

@@ -1,8 +1,8 @@
 // Package fakegame is the smallest game the core's tests drive: players
 // move a counter by their input's D, a snapshot of every counter goes out
 // every second tick, and a "color" message changes the room summary. It has
-// no bot logic (the room still counts empty seats as bots); a join fails
-// once Seats humans sit.
+// no bot logic (it reports every empty seat as a bot); a join fails once
+// Seats humans sit, or always with Refuse's code when that is set.
 package fakegame
 
 import (
@@ -16,9 +16,11 @@ import (
 type Settings struct {
 	Seats      int // default 4
 	Listed     bool
-	PanicStep  bool // Step panics (room panic tests)
-	PanicClose bool // Close and Info panic too after a Step panic
-	BadNew     bool // New panics (lobby build tests)
+	PanicStep  bool   // Step panics (room panic tests)
+	PanicClose bool   // Close and Info panic too after a Step panic
+	BadNew     bool   // New panics (lobby build tests)
+	Refuse     string // non-empty: Join refuses everyone with this code
+	Bots       int    // >0: the bots reported, whatever the humans (default: every empty seat)
 }
 
 // Input: D moves the player's counter, Shot is a one-shot press.
@@ -32,18 +34,19 @@ func (i Input) Held() Input         { i.Shot = false; return i }
 
 // Msg is every client message of the fake game.
 type Msg struct {
-	T     string  `json:"t"`
-	V     int     `json:"v,omitempty"`
-	Name  string  `json:"name,omitempty"`
-	Tok   string  `json:"tok,omitempty"`
-	Code  string  `json:"code,omitempty"`
-	Seq   uint32  `json:"seq,omitempty"`
-	TS    float64 `json:"ts,omitempty"`
-	Chat  int     `json:"id,omitempty"`
-	D     int     `json:"d,omitempty"`
-	Shot  bool    `json:"shot,omitempty"`
-	Seats int     `json:"seats,omitempty"` // create
-	Color string  `json:"color,omitempty"` // "color": the game's own in-room message
+	T      string  `json:"t"`
+	V      int     `json:"v,omitempty"`
+	Name   string  `json:"name,omitempty"`
+	Tok    string  `json:"tok,omitempty"`
+	Code   string  `json:"code,omitempty"`
+	Seq    uint32  `json:"seq,omitempty"`
+	TS     float64 `json:"ts,omitempty"`
+	Chat   int     `json:"id,omitempty"`
+	D      int     `json:"d,omitempty"`
+	Shot   bool    `json:"shot,omitempty"`
+	Seats  int     `json:"seats,omitempty"`  // create
+	Refuse string  `json:"refuse,omitempty"` // create: a room that refuses every join
+	Color  string  `json:"color,omitempty"`  // "color": the game's own in-room message
 }
 
 func (m Msg) Head() netproto.Header {
@@ -110,6 +113,9 @@ func New(s Settings, rec *Recorder) *Game {
 var _ room.Game[Msg, Input, Info] = (*Game)(nil)
 
 func (g *Game) Join(who room.Who) (room.PlayerID, error) {
+	if g.s.Refuse != "" {
+		return 0, room.Refuse(g.s.Refuse)
+	}
 	if len(g.humans) == g.s.Seats {
 		return 0, fmt.Errorf("fakegame: %w", room.ErrFull)
 	}
@@ -159,7 +165,7 @@ func (g *Game) Info() room.Info[Info] {
 	if g.panicked && g.s.PanicClose {
 		panic("fakegame: info")
 	}
-	return room.Info[Info]{Humans: len(g.humans), Seats: g.s.Seats, Listed: g.s.Listed, Game: Info{Color: g.color}}
+	return room.Info[Info]{Humans: len(g.humans), Seats: g.s.Seats, Bots: g.bots(), Listed: g.s.Listed, Game: Info{Color: g.color}}
 }
 
 func (g *Game) Label() string { return "fake" }
@@ -170,4 +176,11 @@ func (g *Game) Close() {
 	if g.panicked && g.s.PanicClose {
 		panic("fakegame: close")
 	}
+}
+
+func (g *Game) bots() int {
+	if g.s.Bots > 0 {
+		return g.s.Bots
+	}
+	return g.s.Seats - len(g.humans)
 }

@@ -42,13 +42,25 @@ type Who struct {
 
 // Info is what a game reports for the lobby.
 type Info[X any] struct {
-	Humans, Seats int // Seats is constant for a room's life; a seat without a human is a bot
+	Humans, Seats int // Seats is constant for a room's life (quick play fills up to it)
+	Bots          int // bots driving now (the bot gauge); a game counts its own, it may differ from Seats-Humans
 	Listed        bool
 	Game          X // game-specific summary; a value type (copied across goroutines)
 }
 
 // ErrFull: no seat is left. A game's Join wraps it.
 var ErrFull = errors.New("room: full")
+
+// Refusal is a game's own reason to turn a player away in Join (a race is
+// running, …). Code is sent as the error frame's code and text; the client
+// translates it. Quick play treats a refusal like a full room.
+type Refusal struct{ Code string }
+
+func (r *Refusal) Error() string { return "room: refused: " + r.Code }
+
+// Refuse is the error a game's Join returns to turn a player away with code
+// (lower case letters, digits and _, starting with a letter, at most 32 bytes).
+func Refuse(code string) error { return &Refusal{Code: code} }
 
 // Game is one match. The room calls every method on its own goroutine;
 // none may block, start goroutines or keep the Outbox.

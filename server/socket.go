@@ -43,12 +43,13 @@ func (e floodError) Is(target error) bool { return target == errFlood }
 
 // peer is one game socket: its connection, its address and its limits.
 type peer[M any] struct {
-	conn  *wsconn.Conn
-	ip    string // for logs
-	key   string // for per-address limits
-	guard *msgGuard
-	held  M       // one-shot presses of dropped inputs
-	drops dropLog // inputs dropped over their rate
+	conn    *wsconn.Conn
+	ip      string // for logs
+	key     string // for per-address limits
+	guard   *msgGuard
+	held    M       // one-shot presses of dropped inputs
+	drops   dropLog // inputs dropped over their rate
+	refused string  // the game's refusal code, when the handshake failed with one
 }
 
 func (s *Server[S, M, In, X]) socket(w http.ResponseWriter, r *http.Request) {
@@ -82,20 +83,26 @@ func (s *Server[S, M, In, X]) socket(w http.ResponseWriter, r *http.Request) {
 	seat, msg := s.handshake(ctx, p)
 	cancel()
 	if msg != "" {
-		fail(conn, msg)
+		fail(conn, msg, p.refused)
 		return
 	}
 	defer seat.Leave()
 	if msg := s.pump(p, seat); msg != "" {
-		fail(conn, msg)
+		fail(conn, msg, "")
 		return
 	}
 	conn.Close()
 }
 
-// fail sends a final error message (with its code) and closes with StatusPolicyViolation.
-func fail(conn *wsconn.Conn, msg string) {
-	conn.Fail(netproto.NewError(errCode(msg), msg))
+// fail sends a final error message (with its code) and closes with
+// StatusPolicyViolation. refused is a game's refusal code: msg is then that
+// code, and so is the frame's code.
+func fail(conn *wsconn.Conn, msg, refused string) {
+	code := errCode(msg)
+	if refused != "" && msg == refused {
+		code = refused
+	}
+	conn.Fail(netproto.NewError(code, msg))
 	<-conn.Done()
 }
 

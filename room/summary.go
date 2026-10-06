@@ -11,7 +11,10 @@ type Summary[X any] struct {
 // publish stores a fresh summary; called by the actor only (and by New
 // before the actor starts).
 func (r *Room[M, In, X]) publish() {
-	r.summary.Store(&Summary[X]{Code: r.code, Seq: r.o.Seq, Info: r.game.Info()})
+	in := r.game.Info()
+	r.summary.Store(&Summary[X]{Code: r.code, Seq: r.o.Seq, Info: in})
+	r.gauge(0, int64(in.Bots)-r.bots)
+	r.bots = int64(in.Bots)
 }
 
 // Summary is the latest published summary; safe from any goroutine.

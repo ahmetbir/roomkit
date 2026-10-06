@@ -143,13 +143,19 @@ type fakeStats struct {
 	known  bool // Me's answer for every hash
 }
 
-func (*fakeStats) Ready() bool       { return true }
-func (*fakeStats) Periods() []string { return []string{"week", "all"} }
-func (f *fakeStats) Board(p string) []byte {
+func (*fakeStats) Ready() bool { return true }
+func (*fakeStats) Boards() []BoardID {
+	return []BoardID{{Period: "week"}, {Period: "all"}, {Period: "all", Key: "ring"}}
+}
+func (f *fakeStats) Board(id BoardID) []byte {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.boards = append(f.boards, p)
-	return []byte(`{"period":"` + p + `"}`)
+	name := id.Period
+	if id.Key != "" {
+		name += "/" + id.Key
+	}
+	f.boards = append(f.boards, name)
+	return []byte(`{"period":"` + name + `"}`)
 }
 func (f *fakeStats) Me(hash string) ([]byte, bool) {
 	f.mu.Lock()
@@ -225,6 +231,25 @@ func TestPeriodWhitelistedBeforeEcho(t *testing.T) {
 	defer st.mu.Unlock()
 	if strings.Join(st.boards, ",") != "all" {
 		t.Fatalf("boards built: %v", st.boards)
+	}
+}
+
+// A board is a (period, key) pair from Stats.Boards: a key the game lists is
+// served, any other pair is bad_period, and a key-less URL stays the key ""
+// board (old URLs keep working).
+func TestBoardKeysWhitelisted(t *testing.T) {
+	st := &fakeStats{}
+	srv := newServer(t, Options{Stats: st})
+	for _, bad := range []string{"week&key=ring", "all&key=Ring", "all&key=other", "&key=ring"} {
+		if code, _ := get(t, srv.URL+"/api/leaderboard?period="+bad); code != 400 {
+			t.Fatalf("%q: %d", bad, code)
+		}
+	}
+	if code, body := get(t, srv.URL+"/api/leaderboard?period=all&key=ring"); code != 200 || body != `{"period":"all/ring"}` {
+		t.Fatalf("all/ring: %d %s", code, body)
+	}
+	if code, body := get(t, srv.URL+"/api/leaderboard?period=week&key="); code != 200 || body != `{"period":"week"}` {
+		t.Fatalf("empty key: %d %s", code, body)
 	}
 }
 

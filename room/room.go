@@ -91,7 +91,8 @@ type Room[M Msg[In], In Input[In], X any] struct {
 	sessions   map[PlayerID]*session[In]
 	ticks      int
 	emptySince time.Time
-	joined     bool // a human has been seated at least once
+	joined     bool  // a human has been seated at least once
+	bots       int64 // the bots this room has added to the bot gauge (last published Info.Bots)
 }
 
 func New[M Msg[In], In Input[In], X any](code string, g Game[M, In, X], o Options) *Room[M, In, X] {
@@ -104,8 +105,7 @@ func New[M Msg[In], In Input[In], X any](code string, g Game[M, In, X], o Option
 		done:     make(chan struct{}),
 		sessions: map[PlayerID]*session[In]{},
 	}
-	r.publish()
-	r.gauge(0, int64(r.Summary().Seats)) // every seat starts as a bot
+	r.publish() // also adds the game's bots to the gauge
 	return r
 }
 
@@ -168,7 +168,8 @@ func (r *Room[M, In, X]) closeAll() {
 	}
 	in := r.Summary().Info
 	r.safely("info", func() { in = r.game.Info() })
-	r.gauge(-int64(in.Humans), -int64(in.Seats-in.Humans))
+	r.gauge(-int64(in.Humans), -r.bots)
+	r.bots = 0
 }
 
 func (r *Room[M, In, X]) safely(what string, f func()) {

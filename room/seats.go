@@ -86,8 +86,8 @@ func (r *Room[M, In, X]) join(req joinReq) {
 	}
 	r.sessions[id] = newSession[In](req.out)
 	r.joined = true
-	r.gauge(+1, -1) // the human took a bot's seat
-	r.publish()     // before the reply: a lobby read after Join sees the seat
+	r.gauge(+1, 0)
+	r.publish() // before the reply: a lobby read after Join sees the seat (and moves the bot gauge)
 	req.reply <- joinResp{id: id}
 	r.game.Welcome(id, r.code, req.who.NewToken, outbox[M, In, X]{r})
 }
@@ -98,7 +98,7 @@ func (r *Room[M, In, X]) leave(id PlayerID) {
 	}
 	delete(r.sessions, id)
 	r.game.Leave(id)
-	r.gauge(-1, +1) // a bot takes the seat back
+	r.gauge(-1, 0)
 	if len(r.sessions) == 0 {
 		r.emptySince = time.Now()
 	}
