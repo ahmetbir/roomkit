@@ -27,6 +27,7 @@ roomkit runs everything around them.
 | `pilot` | Anonymous pilot tokens: issue, validate, hash; log redaction. |
 | `metrics` | Prometheus text exposition with a per-game namespace. |
 | `drain` | `SIGUSR1` drain / `SIGUSR2` undrain for blue/green deploys, with a stats-store handoff hook. |
+| `ledger` | Generic journaled stats store: append-only `journal.jsonl` + `snapshot.json`, one writer goroutine, directory flock for blue/green handoff, eviction, `Slot`; the game supplies a `Schema`. |
 | `loadtest` | A load-test harness (plan, ramp, histograms, gap detection) driven by a game's `Script`. |
 
 | TS module | Does |

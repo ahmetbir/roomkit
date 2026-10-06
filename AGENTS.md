@@ -88,6 +88,11 @@ undrains. Clients treat `1012` as "updating" and rejoin the same code.
   room like a full one. Keep refusal codes in the game's notice-code collision test.
 - `server.Stats.Boards()` lists `BoardID{Period, Key}` pairs; `/api/leaderboard?period=&key=`
   serves only those (a missing `key` is `""`), anything else is `bad_period`.
+- `ledger.Store[D, R]` is Dogfight's stats mechanics without its schema: `Record` never blocks
+  (full or closed = dropped and counted), one actor owns the maps, `stats.lock` is held until
+  `Close` (a second `Open` gets `ErrLocked`). `Schema.Fold` and `Key` are replayed from the journal
+  after a crash, so keep them deterministic; `D` and `R` must JSON-marshal. Eviction is
+  least-recently-seen; game-specific eviction or admission rules belong in `Schema.Empty`/`Key`.
 
 ### Testing
 
