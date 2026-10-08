@@ -86,6 +86,17 @@ undrains. Clients treat `1012` as "updating" and rejoin the same code.
   `^[a-z][a-z0-9_]{0,31}$`, never a core code; otherwise the player gets `full` and the server
   logs the bug). The error frame carries the code as `code` and `msg`; quick play skips such a
   room like a full one. Keep refusal codes in the game's notice-code collision test.
+- `server.Admitter` (optional on the Kit): `Admit(who) (code, ok)` runs after hello, before
+  quick, create or join-by-code touches a room. A refusal goes out like a `room.Refuse` code (same
+  shape rules, a bad code becomes `full`); no room is built, joined or counted, no create/join
+  token is spent and no join failure is counted. It runs on connection goroutines: pure, no I/O.
+  Prefer it to refusing in `Game.Join` for anything about the player (a name, an address): a
+  refusal from Join during quick/create leaves an empty room behind until its empty timeout.
+- `room.Who.Addr` is the client address the per-address limits key on (`X-Real-IP` only from a
+  trusted proxy, IPv4-mapped unmapped). The core never sends it to a client; a game that stores
+  it owns that record's retention.
+- `room.Info.NoQuick`: quick play never picks the room; listing, caps, metrics and join-by-code
+  are unchanged. A game may flip it at any time (`Outbox.Changed` republishes).
 - `server.Stats.Boards()` lists `BoardID{Period, Key}` pairs; `/api/leaderboard?period=&key=`
   serves only those (a missing `key` is `""`), anything else is `bad_period`.
 - `ledger.Store[D, R]` is Dogfight's stats mechanics without its schema: `Record` never blocks
