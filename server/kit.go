@@ -46,6 +46,17 @@ type Kit[S, M, X any] interface {
 	Row(s room.Summary[X]) any                  // one /api/rooms row
 }
 
+// Admitter is optional on a Kit: Admit decides whether who may take a seat
+// at all, before quick play, create or join-by-code touches a room. A
+// refusal (ok false) reaches the player like a room.Refuse code (same shape
+// rules; a bad code becomes the core's full-room error) and no room is
+// made, joined or counted against the room cap or the create and join
+// limits. It runs on connection goroutines: keep it pure and safe for
+// concurrent use; it must not block.
+type Admitter interface {
+	Admit(who room.Who) (code string, ok bool)
+}
+
 // Stats serves the pilot API; nil = stats off (503). Safe for concurrent use.
 type Stats interface {
 	Ready() bool

@@ -205,8 +205,9 @@ func (l *Lobby[S, M, In, X]) List() []room.Summary[X] {
 	return out
 }
 
-// Quick picks the first listed room in List order with a free seat. The
-// room may fill or close before the caller joins; the caller falls back.
+// Quick picks the first listed room in List order with a free seat that
+// is not NoQuick. The room may fill or close before the caller joins; the
+// caller falls back.
 func (l *Lobby[S, M, In, X]) Quick() (*room.Room[M, In, X], bool) {
 	l.mu.Lock()
 	draining := l.draining
@@ -215,7 +216,7 @@ func (l *Lobby[S, M, In, X]) Quick() (*room.Room[M, In, X], bool) {
 		return nil, false
 	}
 	for _, s := range l.List() {
-		if s.Humans < s.Seats {
+		if s.Humans < s.Seats && !s.NoQuick {
 			if r, ok := l.Get(s.Code); ok {
 				return r, true
 			}

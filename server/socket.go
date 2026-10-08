@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/netip"
 
 	"github.com/ahmetbir/roomkit/limit"
 	"github.com/ahmetbir/roomkit/netproto"
@@ -44,8 +45,9 @@ func (e floodError) Is(target error) bool { return target == errFlood }
 // peer is one game socket: its connection, its address and its limits.
 type peer[M any] struct {
 	conn    *wsconn.Conn
-	ip      string // for logs
-	key     string // for per-address limits
+	ip      string     // for logs
+	addr    netip.Addr // the game's room.Who.Addr
+	key     string     // for per-address limits
 	guard   *msgGuard
 	held    M       // one-shot presses of dropped inputs
 	drops   dropLog // inputs dropped over their rate
@@ -54,7 +56,7 @@ type peer[M any] struct {
 
 func (s *Server[S, M, In, X]) socket(w http.ResponseWriter, r *http.Request) {
 	ip := clientIP(r, s.o.TrustProxy)
-	p := &peer[M]{ip: ip.String(), key: limitKey(ip), guard: newMsgGuard(s.o.Limits, s.o.Now)}
+	p := &peer[M]{ip: ip.String(), addr: ip, key: limitKey(ip), guard: newMsgGuard(s.o.Limits, s.o.Now)}
 	if err := s.conns.Acquire(p.key); err != nil {
 		if isNet(err) {
 			s.rejects.note("conns-per-net", p.ip)

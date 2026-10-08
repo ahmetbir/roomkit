@@ -149,6 +149,35 @@ func TestListAndQuick(t *testing.T) {
 	}
 }
 
+// A NoQuick room is listed like any other but quick play never picks it,
+// even when it is the busiest room with a free seat.
+func TestQuickSkipsNoQuick(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	l := newLobby(ctx, 0, nil)
+	open, _ := l.Create(fakegame.Settings{Listed: true, Seats: 1})
+	noQuick, _ := l.Create(fakegame.Settings{Listed: true, Seats: 4, NoQuick: true})
+	if _, err := noQuick.Join(ctx, room.Who{Name: "x"}, nopSender{}); err != nil {
+		t.Fatal(err)
+	}
+	got := l.List()
+	if len(got) != 2 || got[0].Code != noQuick.Code() || !got[0].NoQuick {
+		t.Fatalf("list %+v", got)
+	}
+	if r, ok := l.Quick(); !ok || r != open {
+		t.Fatal("quick must pass over the NoQuick room")
+	}
+	if r, ok := l.Get(noQuick.Code()); !ok || r != noQuick {
+		t.Fatal("a NoQuick room stays reachable by code")
+	}
+	if _, err := open.Join(ctx, room.Who{Name: "y"}, nopSender{}); err != nil { // now full
+		t.Fatal(err)
+	}
+	if r, ok := l.Quick(); ok {
+		t.Fatalf("only the NoQuick room has a free seat: quick picked %s", r.Code())
+	}
+}
+
 // A panic while building a room is an error: the code is freed and Wait
 // does not hang on the room that never ran.
 func TestBuildPanicIsAnError(t *testing.T) {
