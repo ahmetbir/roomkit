@@ -10,7 +10,7 @@ roomkit runs everything around them.
 
 - **Go:** `go get github.com/ahmetbir/roomkit@latest` — Go 1.26, one dependency
   ([coder/websocket](https://github.com/coder/websocket)).
-- **TypeScript:** `"roomkit": "git+https://github.com/ahmetbir/roomkit.git#v0.3.0"` in `package.json`, then
+- **TypeScript:** `"roomkit": "git+https://github.com/ahmetbir/roomkit.git#v0.4.0"` in `package.json`, then
   `import { Socket } from "roomkit/net/socket"`. Ships compiled ES2022 with type declarations; no
   runtime dependencies, no `three`.
 
@@ -18,9 +18,9 @@ roomkit runs everything around them.
 
 | Go package | Does |
 |---|---|
-| `room` | The room actor: one goroutine at a fixed tick (60 Hz) that owns a game, seats, per-player input queues with seq/ack, ping, quick chat, timeouts, panic recovery, the lobby summary. A game implements `room.Game`. |
+| `room` | The room actor: one goroutine at a fixed tick (60 Hz) that owns a game, seats, per-player input queues with seq/ack, ping, quick chat, timeouts, panic recovery, the lobby summary. A game implements `room.Game`; `room.Who` carries the player's name, pilot hash and client address (never sent to clients), `room.Info.NoQuick` keeps a room out of quick play. |
 | `lobby` | Room codes, listing, quick play, room caps, drain, stats flush. |
-| `server` | HTTP + WebSocket server: handshake, origin check, per-address and per-/48 connection gates, create/join/API rate limits, inbound guard, security headers and CSP, fingerprinted static assets, `/healthz`, `/api/rooms`, `/api/leaderboard`, `/api/me`. A game implements `server.Kit` (and optionally `server.Stats`). |
+| `server` | HTTP + WebSocket server: handshake, origin check, per-address and per-/48 connection gates, create/join/API rate limits, inbound guard, security headers and CSP, fingerprinted static assets, `/healthz`, `/api/rooms`, `/api/leaderboard`, `/api/me`. A game implements `server.Kit` (and optionally `server.Admitter`, to turn a player away before any room is touched, and `server.Stats`). |
 | `netproto` | The shared wire envelope (`t`, `v`, `name`, `tok`, `code`, `seq`, `ts`, `id`), core message types, error and API codes, `CleanName`. |
 | `wsconn` | A connection whose `Send` never blocks: bounded queue, evictable snapshots, write timeout. |
 | `limit` | Token buckets, keyed tables with refunds, connection gates. |

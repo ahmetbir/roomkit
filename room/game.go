@@ -2,6 +2,7 @@ package room
 
 import (
 	"errors"
+	"net/netip"
 
 	"github.com/ahmetbir/roomkit/netproto"
 )
@@ -38,6 +39,13 @@ type Who struct {
 	Name     string
 	Pilot    string // pilot.Hash(token); "" = not counted
 	NewToken string // raw token to hand back in the welcome, only when just issued; never stored
+	// Addr is the client address the per-address limits key on: the peer,
+	// or the first valid X-Real-IP address when the peer is a trusted proxy;
+	// IPv4-mapped addresses are unmapped. For the game's own records; the
+	// core never sends it to a client. Zero (!IsValid) when the address is
+	// unknown: outside the server's handshake, or a listener whose remote
+	// address does not parse.
+	Addr netip.Addr
 }
 
 // Info is what a game reports for the lobby.
@@ -45,7 +53,8 @@ type Info[X any] struct {
 	Humans, Seats int // Seats is constant for a room's life (quick play fills up to it)
 	Bots          int // bots driving now (the bot gauge); a game counts its own, it may differ from Seats-Humans
 	Listed        bool
-	Game          X // game-specific summary; a value type (copied across goroutines)
+	NoQuick       bool // quick play never picks the room; it is still listed, counted and joinable by code
+	Game          X    // game-specific summary; a value type (copied across goroutines)
 }
 
 // ErrFull: no seat is left. A game's Join wraps it.

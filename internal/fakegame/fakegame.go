@@ -21,6 +21,7 @@ type Settings struct {
 	BadNew     bool   // New panics (lobby build tests)
 	Refuse     string // non-empty: Join refuses everyone with this code
 	Bots       int    // >0: the bots reported, whatever the humans (default: every empty seat)
+	NoQuick    bool   // the room reports Info.NoQuick
 }
 
 // Input: D moves the player's counter, Shot is a one-shot press.
@@ -165,7 +166,7 @@ func (g *Game) Info() room.Info[Info] {
 	if g.panicked && g.s.PanicClose {
 		panic("fakegame: info")
 	}
-	return room.Info[Info]{Humans: len(g.humans), Seats: g.s.Seats, Bots: g.bots(), Listed: g.s.Listed, Game: Info{Color: g.color}}
+	return room.Info[Info]{Humans: len(g.humans), Seats: g.s.Seats, Bots: g.bots(), Listed: g.s.Listed, NoQuick: g.s.NoQuick, Game: Info{Color: g.color}}
 }
 
 func (g *Game) Label() string { return "fake" }
