@@ -42,7 +42,9 @@ type Who struct {
 	// Addr is the client address the per-address limits key on: the peer,
 	// or the first valid X-Real-IP address when the peer is a trusted proxy;
 	// IPv4-mapped addresses are unmapped. For the game's own records; the
-	// core never sends it to a client. Zero outside the server's handshake.
+	// core never sends it to a client. Zero (!IsValid) when the address is
+	// unknown: outside the server's handshake, or a listener whose remote
+	// address does not parse.
 	Addr netip.Addr
 }
 

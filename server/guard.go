@@ -94,18 +94,23 @@ func newRejectLog(now func() time.Time, onReject func(reason string)) *rejectLog
 	return &rejectLog{now: now, onReject: onReject, count: map[string]int{}, last: map[string]time.Time{}}
 }
 
-func (l *rejectLog) note(reason, ip string, attrs ...any) {
+func (l *rejectLog) note(reason, ip string, attrs ...any) { l.noteKey(reason, reason, ip, attrs...) }
+
+// noteKey is note with the log line throttled and counted per key instead
+// of per reason (the metric still counts reason): one line per refusal
+// code, say. Keys must come from a small fixed set.
+func (l *rejectLog) noteKey(reason, key, ip string, attrs ...any) {
 	if l.onReject != nil {
 		l.onReject(reason)
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	l.count[reason]++
+	l.count[key]++
 	now := l.now()
-	if now.Sub(l.last[reason]) < rejectLogEvery {
+	if now.Sub(l.last[key]) < rejectLogEvery {
 		return
 	}
-	slog.Info("rejected", append([]any{"reason", reason, "ip", ip, "count", l.count[reason]}, attrs...)...)
-	l.count[reason] = 0
-	l.last[reason] = now
+	slog.Info("rejected", append([]any{"reason", reason, "ip", ip, "count", l.count[key]}, attrs...)...)
+	l.count[key] = 0
+	l.last[key] = now
 }

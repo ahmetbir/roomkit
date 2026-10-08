@@ -46,15 +46,23 @@ type Kit[S, M, X any] interface {
 	Row(s room.Summary[X]) any                  // one /api/rooms row
 }
 
-// Admitter is optional on a Kit: Admit decides whether who may take a seat
+// Admitter is optional on a Kit: Admit decides whether a player may go on
 // at all, before quick play, create or join-by-code touches a room. A
 // refusal (ok false) reaches the player like a room.Refuse code (same shape
 // rules; a bad code becomes the core's full-room error) and no room is
 // made, joined or counted against the room cap or the create and join
-// limits. It runs on connection goroutines: keep it pure and safe for
-// concurrent use; it must not block.
+// limits; the core counts it as the "admit" reject. It runs on connection
+// goroutines: keep it pure and safe for concurrent use; it must not block.
 type Admitter interface {
-	Admit(who room.Who) (code string, ok bool)
+	Admit(req AdmitRequest) (code string, ok bool)
+}
+
+// AdmitRequest is what Admit decides on. It may gain fields; build it
+// keyed.
+type AdmitRequest struct {
+	Who  room.Who
+	Kind string // the handshake request: netproto.TQuick, TCreate or TJoin ("quick", "create", "join")
+	Code string // join only: the room code as sent, upper-cased when well formed; it may name no room
 }
 
 // Stats serves the pilot API; nil = stats off (503). Safe for concurrent use.

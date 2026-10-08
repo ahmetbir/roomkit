@@ -42,7 +42,14 @@ func (s *Server[S, M, In, X]) handshake(ctx context.Context, p *peer[M]) (*room.
 	var rm *room.Room[M, In, X]
 	switch h = m.Head(); h.T {
 	case netproto.TCreate, netproto.TQuick, netproto.TJoin:
-		if msg := s.vet(p, who); msg != "" {
+		req := AdmitRequest{Who: who, Kind: h.T}
+		if h.T == netproto.TJoin {
+			req.Code = h.Code
+			if c, ok := lobby.NormalizeCode(h.Code); ok {
+				req.Code = c
+			}
+		}
+		if msg := s.vet(p, req); msg != "" {
 			return nil, msg
 		}
 	}
@@ -100,19 +107,27 @@ func (s *Server[S, M, In, X]) handshake(ctx context.Context, p *peer[M]) (*room.
 	return seat, ""
 }
 
-// vet asks the Kit's Admitter, if it has one, whether who may take a seat:
-// "" admits, anything else is the refusal's error text. It runs before any
-// room is picked, made or joined and before any create or join token is
-// spent.
-func (s *Server[S, M, In, X]) vet(p *peer[M], who room.Who) string {
+// vet asks the Kit's Admitter, if it has one, whether the request may go
+// on: "" admits, anything else is the refusal's error text. It runs before
+// any room is picked, made or joined and before any create or join token
+// is spent. A refusal is counted as the "admit" reject, logged with its
+// code (never the player's name).
+func (s *Server[S, M, In, X]) vet(p *peer[M], req AdmitRequest) string {
 	a, ok := s.kit.(Admitter)
 	if !ok {
 		return ""
 	}
-	if code, ok := a.Admit(who); !ok {
-		return p.refuse(code)
+	code, ok := a.Admit(req)
+	if ok {
+		return ""
 	}
-	return ""
+	msg := p.refuse(code)
+	logged := msg // the game's code, or the core's full text for a bad one
+	if msg != code {
+		logged = errCode(msg)
+	}
+	s.rejects.noteKey("admit", "admit "+logged, p.ip, "code", logged, "kind", req.Kind)
+	return msg
 }
 
 // refuse is the error text of a game's refusal: its code, which the error
